@@ -4,20 +4,24 @@ interface
 
 uses
   // System includings
-  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants, System.DateUtils,
+  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants, System.DateUtils, System.Generics.Collections,
   // FMX includings
-  FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs,
+  FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Edit, FMX.Controls.Presentation, FMX.StdCtrls, FMX.ScrollBox,
+  FMX.Memo,
   // Project includings
-  IdHashMessageDigest, idHash, FMX.Edit, FMX.Controls.Presentation, FMX.StdCtrls;
+  SyncingUnit;
 
 type
   TMainForm = class(TForm)
-    HashButton: TButton;
+    TestButton: TButton;
     FileOpenEdit: TEdit;
     FileOpenButton: TButton;
     OpenDialog: TOpenDialog;
+    TestMemo: TMemo;
     procedure FileOpenButtonClick(Sender: TObject);
-    procedure HashButtonClick(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
+    procedure TestButtonClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -26,38 +30,42 @@ type
 
 var
   MainForm: TMainForm;
+  Syncher: TSyncher;
 
 implementation
 
 {$R *.fmx}
 
+procedure TMainForm.FormCreate(Sender: TObject);
+begin
+  Syncher := TSyncher.Create;
+
+  //OpenDialog.Options := [TOpenOption.ofdoPickFolders];
+end;
+
+procedure TMainForm.FormDestroy(Sender: TObject);
+begin
+  Syncher.Destroy;
+end;
+
 procedure TMainForm.FileOpenButtonClick(Sender: TObject);
 begin
   if OpenDialog.Execute then
     FileOpenEdit.Text := OpenDialog.FileName;
+
+  OpenDialog.OptionsEx
 end;
 
-procedure TMainForm.HashButtonClick(Sender: TObject);
+procedure TMainForm.TestButtonClick(Sender: TObject);
 var
-  idmd5: TIdHashMessageDigest5;
-  fs: TFileStream;
-  hash: T4x4LongWordRecord;
-  h: string;
-  sec: integer;
-  t: TDateTime;
+  s: string;
+  l: TList<string>;
 begin
-  h := '';
-  idmd5 := TIdHashMessageDigest5.Create;
-  t := Now;
-  fs := TFileStream.Create(FileOpenEdit.Text, fmOpenRead OR fmShareDenyWrite);
-  try
-    h := idmd5.HashBytesAsHex(idmd5.HashStream(fs));
-  finally
-    fs.Free;
-    idmd5.Free;
-  end;
-  sec := MillisecondsBetween(t, Now);
-  ShowMessage(sec.ToString + ' ' + h);
+  TestMemo.Lines.Clear;
+  l := Syncher.GetAllItems(FileOpenEdit.Text);
+  for s in l do
+    TestMemo.Lines.Add(s);
+  l.Destroy;
 end;
 
 end.

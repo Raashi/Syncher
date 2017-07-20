@@ -1,22 +1,27 @@
 object MainForm: TMainForm
-  Left = 0
-  Top = 0
+  Left = 630
+  Top = 240
   Caption = 'Syncher v0.1'
   ClientHeight = 480
   ClientWidth = 640
+  Position = Designed
   FormFactor.Width = 320
   FormFactor.Height = 480
   FormFactor.Devices = [Desktop]
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  Left = 630
+  Top = 240
   DesignerMasterStyle = 0
-  object HashButton: TButton
+  object TestButton: TButton
     Position.X = 32.000000000000000000
     Position.Y = 72.000000000000000000
-    Size.Width = 97.000000000000000000
+    Size.Width = 73.000000000000000000
     Size.Height = 22.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 0
-    Text = #1055#1086#1083#1091#1095#1080#1090#1100' '#1093#1101#1096
-    OnClick = HashButtonClick
+    Text = #1050#1085#1086#1087#1082#1072
+    OnClick = TestButtonClick
   end
   object FileOpenEdit: TEdit
     Touch.InteractiveGestures = [LongTap, DoubleTap]
@@ -40,5 +45,17 @@ object MainForm: TMainForm
   object OpenDialog: TOpenDialog
     Left = 416
     Top = 32
+  end
+  object TestMemo: TMemo
+    Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
+    DataDetectorTypes = []
+    Position.X = 32.000000000000000000
+    Position.Y = 112.000000000000000000
+    Size.Width = 369.000000000000000000
+    Size.Height = 225.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 4
+    Viewport.Width = 365.000000000000000000
+    Viewport.Height = 221.000000000000000000
   end
 end

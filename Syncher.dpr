@@ -3,7 +3,9 @@ program Syncher;
 uses
   System.StartUpCopy,
   FMX.Forms,
-  MainUnit in 'MainUnit.pas' {MainForm};
+  MainUnit in 'MainUnit.pas' {MainForm},
+  FileCopierU in 'FileCopierU.pas',
+  SyncingUnit in 'SyncingUnit.pas';
 
 {$R *.res}
 
