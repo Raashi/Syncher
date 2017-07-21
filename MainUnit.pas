@@ -16,12 +16,14 @@ type
     TestButton: TButton;
     FileOpenEdit: TEdit;
     FileOpenButton: TButton;
-    OpenDialog: TOpenDialog;
     TestMemo: TMemo;
+    SyncingFoldersButton: TButton;
+    SyncingFoldersMemo: TMemo;
+    MainDirectoryLabel: TLabel;
+    SyncingFoldersLabel: TLabel;
     procedure FileOpenButtonClick(Sender: TObject);
-    procedure FormCreate(Sender: TObject);
-    procedure FormDestroy(Sender: TObject);
     procedure TestButtonClick(Sender: TObject);
+    procedure SyncingFoldersButtonClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -30,42 +32,30 @@ type
 
 var
   MainForm: TMainForm;
-  Syncher: TSyncher;
 
 implementation
 
 {$R *.fmx}
 
-procedure TMainForm.FormCreate(Sender: TObject);
+procedure TMainForm.SyncingFoldersButtonClick(Sender: TObject);
+var
+  Directory: string;
 begin
-  Syncher := TSyncher.Create;
-
-  //OpenDialog.Options := [TOpenOption.ofdoPickFolders];
-end;
-
-procedure TMainForm.FormDestroy(Sender: TObject);
-begin
-  Syncher.Destroy;
+  if SelectDirectory('Выберите папку для синхронизации', '', Directory) then
+    SyncingFoldersMemo.Lines.Add(Syncher.AddBackSlash(Directory));
 end;
 
 procedure TMainForm.FileOpenButtonClick(Sender: TObject);
+var
+  Directory: string;
 begin
-  if OpenDialog.Execute then
-    FileOpenEdit.Text := OpenDialog.FileName;
-
-  OpenDialog.OptionsEx
+  if SelectDirectory('Выберите главную папку', '', Directory) then
+    FileOpenEdit.Text := Syncher.AddBackSlash(Directory);
 end;
 
 procedure TMainForm.TestButtonClick(Sender: TObject);
-var
-  s: string;
-  l: TList<string>;
 begin
-  TestMemo.Lines.Clear;
-  l := Syncher.GetAllItems(FileOpenEdit.Text);
-  for s in l do
-    TestMemo.Lines.Add(s);
-  l.Destroy;
+  Syncher.SyncFolder(FileOpenEdit.Text, SyncingFoldersMemo.Lines[0], true);
 end;
 
 end.

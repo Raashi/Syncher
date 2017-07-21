@@ -2,20 +2,18 @@ object MainForm: TMainForm
   Left = 630
   Top = 240
   Caption = 'Syncher v0.1'
-  ClientHeight = 480
-  ClientWidth = 640
+  ClientHeight = 646
+  ClientWidth = 967
   Position = Designed
   FormFactor.Width = 320
   FormFactor.Height = 480
   FormFactor.Devices = [Desktop]
-  OnCreate = FormCreate
-  OnDestroy = FormDestroy
   Left = 630
   Top = 240
   DesignerMasterStyle = 0
   object TestButton: TButton
     Position.X = 32.000000000000000000
-    Position.Y = 72.000000000000000000
+    Position.Y = 96.000000000000000000
     Size.Width = 73.000000000000000000
     Size.Height = 22.000000000000000000
     Size.PlatformDefault = False
@@ -26,36 +24,73 @@ object MainForm: TMainForm
   object FileOpenEdit: TEdit
     Touch.InteractiveGestures = [LongTap, DoubleTap]
     TabOrder = 1
+    Text = 'D:\Projects\Syncher\Test\Main Folder\'
     Position.X = 32.000000000000000000
-    Position.Y = 32.000000000000000000
+    Position.Y = 56.000000000000000000
     Size.Width = 321.000000000000000000
     Size.Height = 22.000000000000000000
     Size.PlatformDefault = False
   end
   object FileOpenButton: TButton
     Position.X = 368.000000000000000000
-    Position.Y = 32.000000000000000000
+    Position.Y = 56.000000000000000000
     Size.Width = 25.000000000000000000
     Size.Height = 22.000000000000000000
     Size.PlatformDefault = False
-    TabOrder = 2
+    TabOrder = 3
     Text = '...'
     OnClick = FileOpenButtonClick
-  end
-  object OpenDialog: TOpenDialog
-    Left = 416
-    Top = 32
   end
   object TestMemo: TMemo
     Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
     DataDetectorTypes = []
     Position.X = 32.000000000000000000
-    Position.Y = 112.000000000000000000
-    Size.Width = 369.000000000000000000
+    Position.Y = 168.000000000000000000
+    Size.Width = 361.000000000000000000
     Size.Height = 225.000000000000000000
     Size.PlatformDefault = False
-    TabOrder = 4
-    Viewport.Width = 365.000000000000000000
+    TabOrder = 5
+    Viewport.Width = 357.000000000000000000
     Viewport.Height = 221.000000000000000000
+  end
+  object SyncingFoldersButton: TButton
+    Position.X = 752.000000000000000000
+    Position.Y = 56.000000000000000000
+    Size.Width = 25.000000000000000000
+    Size.Height = 22.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 2
+    Text = '...'
+    OnClick = SyncingFoldersButtonClick
+  end
+  object SyncingFoldersMemo: TMemo
+    Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
+    DataDetectorTypes = []
+    Lines.Strings = (
+      'D:\Projects\Syncher\Test\Secondary Folder\')
+    Position.X = 416.000000000000000000
+    Position.Y = 56.000000000000000000
+    Size.Width = 321.000000000000000000
+    Size.Height = 161.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 6
+    Viewport.Width = 317.000000000000000000
+    Viewport.Height = 157.000000000000000000
+  end
+  object MainDirectoryLabel: TLabel
+    Position.X = 32.000000000000000000
+    Position.Y = 32.000000000000000000
+    Size.Width = 361.000000000000000000
+    Size.Height = 25.000000000000000000
+    Size.PlatformDefault = False
+    Text = #1043#1083#1072#1074#1085#1072#1103' '#1087#1072#1087#1082#1072
+  end
+  object SyncingFoldersLabel: TLabel
+    Position.X = 416.000000000000000000
+    Position.Y = 32.000000000000000000
+    Size.Width = 361.000000000000000000
+    Size.Height = 25.000000000000000000
+    Size.PlatformDefault = False
+    Text = #1055#1072#1087#1082#1080' '#1076#1083#1103' '#1089#1080#1085#1093#1088#1086#1085#1080#1079#1072#1094#1080#1080
   end
 end
