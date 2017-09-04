@@ -21,6 +21,7 @@ type
     SyncingFoldersMemo: TMemo;
     MainDirectoryLabel: TLabel;
     SyncingFoldersLabel: TLabel;
+    RecycleCheckBox: TCheckBox;
     procedure FileOpenButtonClick(Sender: TObject);
     procedure TestButtonClick(Sender: TObject);
     procedure SyncingFoldersButtonClick(Sender: TObject);
@@ -55,7 +56,7 @@ end;
 
 procedure TMainForm.TestButtonClick(Sender: TObject);
 begin
-  Syncher.SyncFolder(FileOpenEdit.Text, SyncingFoldersMemo.Lines[0], true);
+  Syncher.SyncFolder(FileOpenEdit.Text, SyncingFoldersMemo.Lines[0], RecycleCheckBox.IsPressed);
 end;
 
 end.

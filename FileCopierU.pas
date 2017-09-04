@@ -64,8 +64,7 @@ begin
   CallBack := nil;
 end;
 
-function TFileCopier.DoFolderFiles( const ASourcePath, ATargetPath: string;
-                                    const Op: TFolderOp): Int64;
+function TFileCopier.DoFolderFiles( const ASourcePath, ATargetPath: string; const Op: TFolderOp): Int64;
 // Return -1: failed/error x: count of to or count of copied or Size of all files
 // Root paths must exist
 var

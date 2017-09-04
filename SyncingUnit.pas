@@ -22,45 +22,39 @@ type
 
     TSyncherItem = class
     private
-      FRoot: boolean;
       FParent: TSyncherItem;
       FName: string;
-      FDirectory: string;
+      FPath: string;
+      FFullPath: string;
       FIsFile: boolean;
       FSubTree: Tlist<TSyncherItem>;
 
-      constructor Create(Parent: TSyncherItem; const Name, Directory: string; const IsFile: boolean);
+      constructor Create(Parent: TSyncherItem; const Name: string; const IsFile: boolean);
       constructor CreateRoot(const Path: string);
 
       function GetTreeCount: integer;
-      function GetItem(Index: integer): TSyncherItem;
+      function GetChild(Index: integer): TSyncherItem;
+      function CollectChildren: TList<TSyncherItem>;
     public
       property Name: string read FName;
-      property Directory: string read FDirectory;
+      property Directory: string read FPath;
       property IsFile: boolean read FIsFile;
+      function FullPath: string;
 
       property SubTreeCount: integer read GetTreeCount;
-      property Item[Index: integer]: TSyncherItem read GetItem; default;
+      property Child[Index: integer]: TSyncherItem read GetChild; default;
       function GetSubTreeArray: TArray<TSyncherItem>;
 
       function FileName: string;
 
-      class function Compare(Item1, Item2: TSyncherItem): boolean;
-
-      destructor Delete;
       destructor Destroy;
     end;
-    
-  strict private
-    constructor Create;
-    destructor Destroy;
+
   private
-    function ExtractParentDir(Dir: string): string;
-    function ExtractNameDir(Dir: string): string;
-    
-    function GetAllItems(Path: string): Tlist<TSyncherItem>;
-    procedure DeleteExtras(MainItem, SyncItem: TSyncherItem; RecycleBin: boolean);
-    function DeleteFile(SI: TSyncherItem; RecycleBin: boolean): boolean;
+    procedure DeleteExtras(MainItem, SyncItem: TSyncherItem; UseRecycleBin: boolean);
+    function DeleteFile(SI: TSyncherItem; UseRecycleBin: boolean): integer;
+
+    class function Compare(const Item1, Item2: TSyncherItem): boolean;
   public
     function AddBackSlash(const S: String): string;
 
@@ -76,6 +70,11 @@ implementation
 
 { TSyncher }
 
+class function TSyncher.Compare(const Item1, Item2: TSyncherItem): boolean;
+begin
+  result := Item1.Name = Item2.Name;
+end;
+
 function TSyncher.AddBackSlash(const S: String): string;
 begin
   Result := S;
@@ -88,93 +87,54 @@ begin
     Result := '\';
 end;
 
-constructor TSyncher.Create;
-begin
-end;
-
-destructor TSyncher.Destroy;
-begin
-  inherited;
-end;
-
-function TSyncher.ExtractNameDir(Dir: string): string;
-begin
-  Dir := Dir.Substring(1, Length(Dir) - 1);
-  result := Dir.Substring(Dir.LastIndexOf('\')) + '\';
-end;
-
-function TSyncher.ExtractParentDir(Dir: string): string;
-begin
-  Dir := Dir.Substring(1, Length(Dir) - 1);
-  result := Dir.Substring(1, Dir.LastIndexOf('\'));
-end;
-
-function TSyncher.DeleteFile(SI: TSyncherItem; RecycleBin: boolean): boolean;
+function TSyncher.DeleteFile(SI: TSyncherItem; UseRecycleBin: boolean): integer;
 var 
   FileOp: TSHFileOpStruct;
 begin
-  if integer(GetFileAttributes(PChar(SI.FileName))) = -1 then
+  if integer(GetFileAttributes(PChar(SI.FFullPath))) = -1 then
   begin
-    result := false;
+    result := 0;
     exit;
   end;
 
   ZeroMemory(@FileOp, SizeOf(FileOp));
   FileOp.wFunc := FO_DELETE;
-  FileOp.pFrom := PChar(SI.FileName);
+  FileOp.pFrom := PChar(SI.FFullPath + #0);
+  FileOP.fAnyOperationsAborted := false;
 
-  if RecycleBin then
-    FileOp.fFlags := FOF_ALLOWUNDO or FOF_SILENT or FOF_NOCONFIRMATION
+  if UseRecycleBin then
+    FileOp.fFlags := FOF_SILENT or FOF_NOCONFIRMATION
   else
-    FileOp.fFlags := FOF_SILENT or FOF_NOCONFIRMATION;
+    FileOp.fFlags := FOF_ALLOWUNDO or FOF_SILENT or FOF_NOCONFIRMATION;
 
-  Result := SHFileOperation(FileOp) = 0;
+  Result := SHFileOperation(FileOp);
 end;
 
-procedure TSyncher.DeleteExtras(MainItem, SyncItem: TSyncherItem; RecycleBin: boolean);
+procedure TSyncher.DeleteExtras(MainItem, SyncItem: TSyncherItem; UseRecycleBin: boolean);
 var
   i, j: integer;
-  DoNotDelete: boolean;
+  NeedDelete: boolean;
   si: TSyncherItem;
 begin
-  for i := 0 to SyncItem.SubTreeCount - 1 do
+  for i := SyncItem.SubTreeCount - 1 downto 0 do
   begin
     si := SyncItem[i];
 
-    DoNotDelete := false;
+    NeedDelete := true;
     for j := 0 to MainItem.SubTreeCount - 1 do
-      if TSyncherItem.Compare(si, MainItem[j]) then
+      if Compare(si, MainItem[j]) then
       begin
         if not si.IsFile then
-          DeleteExtras(MainItem[j], si, RecycleBin);
-        DoNotDelete := true;
+          DeleteExtras(MainItem[j], si, UseRecycleBin);
+        NeedDelete := false;
         break;
       end;
 
-    if not DoNotDelete then
-       
-  end;
-end;
-
-function TSyncher.GetAllItems(Path: string): Tlist<TSyncherItem>;
-var
-  i: integer;
-  FindRec: TSearchRec;
-  SearchPath: string;
-begin
-  SearchPath := Path + '*.*';
-
-  result := TList<TSyncherItem>.Create;
-  i := FindFirst(SearchPath, faAnyFile or faDirectory, FindRec);
-  try
-    while i = 0 do
+    if NeedDelete then
     begin
-      if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
-        result.Add(TSyncherItem.Create(FindRec.Name, Path, FindRec.Attr <> faDirectory));
-      i := FindNext(FindRec);
+      DeleteFile(si, UseRecycleBin);
+      si.Destroy;
     end;
-  finally
-    System.SysUtils.FindClose(FindRec);
   end;
 end;
 
@@ -186,54 +146,76 @@ begin
   SyncItem := TSyncherItem.CreateRoot(APath);
 
   DeleteExtras(MainItem, SyncItem, ARecycleBin);
+
+  MainItem.Destroy;
+  SyncItem.Destroy;
 end;
 
 { TSyncher.TSyncherItem }
 
-class function TSyncher.TSyncherItem.Compare(Item1, Item2: TSyncherItem): boolean;
+function TSyncher.TSyncherItem.CollectChildren: TList<TSyncherItem>;
+var
+  i: integer;
+  FindRec: TSearchRec;
+  SearchPath: string;
 begin
-  result := Item1.Name = Item2.Name;
+  SearchPath := FFullPath + '*.*';
+
+  result := TList<TSyncherItem>.Create;
+  i := FindFirst(SearchPath, faAnyFile or faDirectory, FindRec);
+  try
+    while i = 0 do
+    begin
+      if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+        result.Add(TSyncherItem.Create(Self, FindRec.Name, FindRec.Attr <> faDirectory));
+      i := FindNext(FindRec);
+    end;
+  finally
+    System.SysUtils.FindClose(FindRec);
+  end;
 end;
 
-constructor TSyncher.TSyncherItem.Create(Parent: TSyncherItem; const Name, Directory: string; const IsFile: boolean);
+constructor TSyncher.TSyncherItem.Create(Parent: TSyncherItem; const Name: string; const IsFile: boolean);
 begin
-  FRoot := false;
   FParent := Parent;
   FName := Name;
-  FDirectory := Directory;
+  FFullPath := Parent.FFullPath + FName;
+  FPath := Parent.FPath + FName;
   FIsFile := IsFile;
 
-  if not FIsFile then
-  begin
-    FName := Syncher.AddBackSlash(FName);
-    FSubTree := Syncher.GetAllItems(FDirectory + FName);    
-  end
+  if FIsFile then
+    FSubTree := nil
   else
-    FSubTree := nil;
+  begin
+    FFullPath := FFullPath + '\';
+    FPath := FPath + '\';
+    FSubTree := CollectChildren;
+  end;
 end;
 
 constructor TSyncher.TSyncherItem.CreateRoot(const Path: string);
 begin
-  FRoot := true;
   FParent := nil;
-  FName := Syncher.ExtractNameDir(Path);
-  FDirectory := Syncher.ExtractParentDir(Path);
+  FName := '';
+  FFullPath := Path;
+  FPath := '\';
   FIsFile := false;
-  FSubTree := Syncher.GetAllItems(Path);
+  FSubTree := CollectChildren;
 end;
 
 destructor TSyncher.TSyncherItem.Destroy;
 var
-  si: TSyncherItem;
+  i: integer;
 begin
-  if not FIsFile then
-  begin
-    for si in FSubTree do
-      si.Destroy;
-    FSubTree.Destroy;
-  end;
+  if FParent <> nil then
+    FParent.FSubTree.Remove(Self);
 
-  inherited;
+  if FIsFile then
+    exit;
+
+  for i := FSubTree.Count - 1 downto 0 do
+    FSubTree[i].Destroy;
+  FSubTree.Destroy;
 end;
 
 function TSyncher.TSyncherItem.GetTreeCount: integer;
@@ -244,7 +226,7 @@ begin
     result := FSubTree.Count;
 end;
 
-function TSyncher.TSyncherItem.GetItem(Index: integer): TSyncherItem;
+function TSyncher.TSyncherItem.GetChild(Index: integer): TSyncherItem;
 begin
   if FIsFile then
     result := nil
@@ -262,7 +244,12 @@ end;
 
 function TSyncher.TSyncherItem.FileName: string;
 begin
-  result := FDirectory + FName;
+  result := FPath + FName;
+end;
+
+function TSyncher.TSyncherItem.FullPath: string;
+begin
+  result := FPath + '\' + FName;
 end;
 
 initialization
