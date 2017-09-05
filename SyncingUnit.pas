@@ -28,6 +28,7 @@ type
       FFullPath: string;
       FIsFile: boolean;
       FSubTree: Tlist<TSyncherItem>;
+      FBytes: int64;
 
       constructor Create(Parent: TSyncherItem; const Name: string; const IsFile: boolean);
       constructor CreateRoot(const Path: string);
@@ -40,21 +41,50 @@ type
       property Directory: string read FPath;
       property IsFile: boolean read FIsFile;
       property Parent: TSyncherItem read FParent;
-      function FullPath: string;
 
       property SubTreeCount: integer read GetTreeCount;
       property Child[Index: integer]: TSyncherItem read GetChild; default;
-      function GetSubTreeArray: TArray<TSyncherItem>;
 
       function FileName: string;
 
-      destructor Destroy;
+      destructor Destroy; override;
     end;
 
+  TSynchRelations = (srBothMain, srMainSecondary);
+  TConflictSolving = (csShowConflict, csUseLatest, csUseOldest);
+
+  TSynchingOptions = record
+    SynchRelations: TSynchRelations;
+    MainItem: integer;
+    ConflictSolving: TConflictSolving;
+  end;
+
+  TConflictPreferedVariant = (cpvNotSolved, cpvFirst, cpvSecond, cpvBoth);
+
+  TConflict = record
+    FirstItem: TSyncherItem;
+    FirstUpdate: TDateTime;
+    SecondItem: TSyncherItem;
+    SecondUpdate: TDateTime;
+    PreferedVariant: TConflictPreferedVariant;
+
+    constructor Create(FI: TSyncherItem; FU: TDateTime; SI: TSyncherItem; SU: TDateTime);
+  end;
+
+  TAnalyzedResult = record
+    FilesToDelete: TList<TSyncherItem>;
+    FilesToCopy: TList<TSyncherItem>;
+    Conflicts: TList<TConflict>;
+
+    procedure Init;
+    procedure Destroy;
+  end;
+
   private
+    function AnalyzeCopying(FirstItem, SecondItem: TSyncherItem; Options: TSynchingOptions): TAnalyzedResult;
+
     procedure DeleteExtras(MainItem, SyncItem: TSyncherItem; UseRecycleBin: boolean);
     procedure CopyNew(MainItem, SyncItem: TSyncherItem);
-
     function DeleteFile(SI: TSyncherItem; UseRecycleBin: boolean): integer;
     function CopyFile(MI, PSI: TSyncherItem): integer;
 
@@ -62,7 +92,7 @@ type
   public
     function AddBackSlash(const S: String): string;
 
-    function SyncFolder(AMainPath, APath: string; ARecycleBin: boolean; ARoutine: TCopyCallBack = nil): integer;
+    procedure SyncFolder(AMainPath, APath: string; ARecycleBin: boolean; ARoutine: TCopyCallBack = nil);
   end;
 
   TSyncherItem = TSyncher.TSyncherItem;
@@ -72,7 +102,41 @@ var
 
 implementation
 
+procedure InitLinks(var Main, Secondary: TSyncherItem; const F, S: TSyncherItem; MainItem: integer);
+begin
+  if (Main <> 1) and (Main <> 2) then
+    raise Exception.Create('Неверное значение MainItem: ' + MainItem.ToString);
+
+  if MainItem = 1 then
+  begin
+    Main := F;
+    Secondary := S;
+  end
+  else
+  begin
+    Main := S;
+    Secondary := F;
+  end;
+end;
+
 { TSyncher }
+
+function TSyncher.AnalyzeCopying(FirstItem, SecondItem: TSyncherItem; Options: TSynchingOptions): TAnalyzedResult;
+var
+  Main, Secondary: TSyncherItem;
+begin
+  case Options.SynchRelations of
+    srBothMain:
+    begin
+
+    end;
+    srMainSecondary:
+    begin
+      InitLinks(Main, Secondary, FirstItem, SecondItem, Options.MainItem);
+
+    end;
+  end;
+end;
 
 class function TSyncher.Compare(const Item1, Item2: TSyncherItem): boolean;
 begin
@@ -189,7 +253,7 @@ begin
   end;
 end;
 
-function TSyncher.SyncFolder(AMainPath, APath: string; ARecycleBin: boolean; ARoutine: TCopyCallBack = nil): integer;
+procedure TSyncher.SyncFolder(AMainPath, APath: string; ARecycleBin: boolean; ARoutine: TCopyCallBack = nil);
 var
   MainItem, SyncItem: TSyncherItem;
 begin
@@ -208,6 +272,7 @@ end;
 function TSyncher.TSyncherItem.CollectChildren: TList<TSyncherItem>;
 var
   i: integer;
+  si: TSyncherItem;
   FindRec: TSearchRec;
   SearchPath: string;
 begin
@@ -219,7 +284,11 @@ begin
     while i = 0 do
     begin
       if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
-        result.Add(TSyncherItem.Create(Self, FindRec.Name, FindRec.Attr <> faDirectory));
+      begin
+        si := TSyncherItem.Create(Self, FindRec.Name, FindRec.Attr <> faDirectory);
+        FBytes := FBytes + si.FBytes;
+        result.Add(si);
+      end;
       i := FindNext(FindRec);
     end;
   finally
@@ -228,6 +297,8 @@ begin
 end;
 
 constructor TSyncher.TSyncherItem.Create(Parent: TSyncherItem; const Name: string; const IsFile: boolean);
+var
+  hFile: integer;
 begin
   FParent := Parent;
   FName := Name;
@@ -236,11 +307,17 @@ begin
   FIsFile := IsFile;
 
   if FIsFile then
-    FSubTree := nil
+  begin
+    FSubTree := nil;
+    hFile := FileOpen(FFullPath, fmOpenRead);
+    FBytes := GetFileSize(hFile, nil);
+    FileClose(hFile);
+  end
   else
   begin
     FFullPath := FFullPath + '\';
     FPath := FPath + '\';
+    FBytes := 0;
     FSubTree := CollectChildren;
   end;
 end;
@@ -268,6 +345,8 @@ begin
   for i := FSubTree.Count - 1 downto 0 do
     FSubTree[i].Destroy;
   FSubTree.Destroy;
+
+  inherited;
 end;
 
 function TSyncher.TSyncherItem.GetTreeCount: integer;
@@ -286,22 +365,36 @@ begin
     result := FSubTree[Index];
 end;
 
-function TSyncher.TSyncherItem.GetSubTreeArray: TArray<TSyncherItem>;
-begin
-  if FIsFile then
-    result := nil
-  else
-    result := FSubTree.ToArray;
-end;
-
 function TSyncher.TSyncherItem.FileName: string;
 begin
   result := FPath + FName;
 end;
 
-function TSyncher.TSyncherItem.FullPath: string;
+{ TSyncher.TConflict }
+
+constructor TSyncher.TConflict.Create(FI: TSyncherItem; FU: TDateTime; SI: TSyncherItem; SU: TDateTime);
 begin
-  result := FPath + '\' + FName;
+  FirstItem := FI;
+  SecondItem := SI;
+  FirstUpdate := FU;
+  SecondUpdate := SU;
+  PreferedVariant := cpvNotSolved;
+end;
+
+{ TSyncher.TAnalyzedResult }
+
+procedure TSyncher.TAnalyzedResult.Init;
+begin
+  FilesToDelete := TList<TSyncherItem>.Create;
+  FilesToCopy := TList<TSyncherItem>.Create;
+  Conflicts := TList<TConflict>.Create;
+end;
+
+procedure TSyncher.TAnalyzedResult.Destroy;
+begin
+  FilesToDelete.Destroy;
+  FilesToCopy.Destroy;
+  Conflicts.Destroy;
 end;
 
 initialization
