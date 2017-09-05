@@ -39,6 +39,7 @@ type
       property Name: string read FName;
       property Directory: string read FPath;
       property IsFile: boolean read FIsFile;
+      property Parent: TSyncherItem read FParent;
       function FullPath: string;
 
       property SubTreeCount: integer read GetTreeCount;
@@ -52,7 +53,10 @@ type
 
   private
     procedure DeleteExtras(MainItem, SyncItem: TSyncherItem; UseRecycleBin: boolean);
+    procedure CopyNew(MainItem, SyncItem: TSyncherItem);
+
     function DeleteFile(SI: TSyncherItem; UseRecycleBin: boolean): integer;
+    function CopyFile(MI, PSI: TSyncherItem): integer;
 
     class function Compare(const Item1, Item2: TSyncherItem): boolean;
   public
@@ -72,7 +76,7 @@ implementation
 
 class function TSyncher.Compare(const Item1, Item2: TSyncherItem): boolean;
 begin
-  result := Item1.Name = Item2.Name;
+  result := (Item1.Name = Item2.Name) and (Item1.IsFile = Item2.IsFile);
 end;
 
 function TSyncher.AddBackSlash(const S: String): string;
@@ -80,7 +84,7 @@ begin
   Result := S;
   if S <> '' then
   begin
-    If S[length(S)] <> '\' then
+    if S[length(S)] <> '\' then
       Result := S + '\';
   end
   else
@@ -88,7 +92,7 @@ begin
 end;
 
 function TSyncher.DeleteFile(SI: TSyncherItem; UseRecycleBin: boolean): integer;
-var 
+var
   FileOp: TSHFileOpStruct;
 begin
   if integer(GetFileAttributes(PChar(SI.FFullPath))) = -1 then
@@ -103,38 +107,85 @@ begin
   FileOP.fAnyOperationsAborted := false;
 
   if UseRecycleBin then
-    FileOp.fFlags := FOF_SILENT or FOF_NOCONFIRMATION
+    FileOp.fFlags := FOF_NO_UI
   else
-    FileOp.fFlags := FOF_ALLOWUNDO or FOF_SILENT or FOF_NOCONFIRMATION;
+    FileOp.fFlags := FOF_ALLOWUNDO or FOF_NO_UI;
 
   Result := SHFileOperation(FileOp);
+end;
+
+function TSyncher.CopyFile(MI, PSI: TSyncherItem): integer;
+var
+  FileOp: TSHFileOpStruct;
+begin
+  if integer(GetFileAttributes(PChar(MI.FFullPath))) = -1 then
+  begin
+    result := 0;
+    exit;
+  end;
+
+  ZeroMemory(@FileOp, SizeOf(FileOp));
+  FileOp.wFunc := FO_COPY;
+  FileOp.pFrom := PChar(MI.FFullPath + #0);
+  FileOP.pTo := PChar(PSI.FFullPath + #0);
+  FileOP.fAnyOperationsAborted := false;
+  FileOp.fFlags := FOF_NO_UI;
+
+  Result := SHFileOperation(FileOp);
+
+  TSyncherItem.Create(PSI, MI.Name, MI.IsFile);
 end;
 
 procedure TSyncher.DeleteExtras(MainItem, SyncItem: TSyncherItem; UseRecycleBin: boolean);
 var
   i, j: integer;
   NeedDelete: boolean;
-  si: TSyncherItem;
+  SI: TSyncherItem;
 begin
   for i := SyncItem.SubTreeCount - 1 downto 0 do
   begin
-    si := SyncItem[i];
-
+    SI := SyncItem[i];
     NeedDelete := true;
+
     for j := 0 to MainItem.SubTreeCount - 1 do
-      if Compare(si, MainItem[j]) then
+      if Compare(SI, MainItem[j]) then
       begin
-        if not si.IsFile then
-          DeleteExtras(MainItem[j], si, UseRecycleBin);
+        if not SI.IsFile then
+          DeleteExtras(MainItem[j], SI, UseRecycleBin);
         NeedDelete := false;
         break;
       end;
 
     if NeedDelete then
     begin
-      DeleteFile(si, UseRecycleBin);
-      si.Destroy;
+      DeleteFile(SI, UseRecycleBin);
+      SI.Destroy;
     end;
+  end;
+end;
+
+procedure TSyncher.CopyNew(MainItem, SyncItem: TSyncherItem);
+var
+  i, j: Integer;
+  MI: TSyncherItem;
+  NeedCopy: boolean;
+begin
+  for i := 0 to MainItem.SubTreeCount - 1 do
+  begin
+    MI := MainItem[i];
+    NeedCopy := true;
+
+    for j := 0 to SyncItem.SubTreeCount - 1 do
+      if Compare(SyncItem[j], MI) then
+      begin
+        if not MI.IsFile then
+          CopyNew(MI, SyncItem[j]);
+        NeedCopy := false;
+        break;
+      end;
+
+    if NeedCopy then
+      CopyFile(MI, SyncItem);
   end;
 end;
 
@@ -146,6 +197,7 @@ begin
   SyncItem := TSyncherItem.CreateRoot(APath);
 
   DeleteExtras(MainItem, SyncItem, ARecycleBin);
+  CopyNew(MainItem, SyncItem);
 
   MainItem.Destroy;
   SyncItem.Destroy;
