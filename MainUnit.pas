@@ -14,17 +14,17 @@ uses
 type
   TMainForm = class(TForm)
     TestButton: TButton;
-    FileOpenEdit: TEdit;
-    FileOpenButton: TButton;
+    FileOpenEdit1: TEdit;
+    FileOpenButton1: TButton;
     TestMemo: TMemo;
-    SyncingFoldersButton: TButton;
-    SyncingFoldersMemo: TMemo;
-    MainDirectoryLabel: TLabel;
-    SyncingFoldersLabel: TLabel;
+    FileOpenButton2: TButton;
+    DirectoryLabel1: TLabel;
+    DirectoryLabel2: TLabel;
     RecycleCheckBox: TCheckBox;
-    procedure FileOpenButtonClick(Sender: TObject);
+    FileOpenEdit2: TEdit;
+    procedure FileOpenButton1Click(Sender: TObject);
     procedure TestButtonClick(Sender: TObject);
-    procedure SyncingFoldersButtonClick(Sender: TObject);
+    procedure FileOpenButton2Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -38,25 +38,35 @@ implementation
 
 {$R *.fmx}
 
-procedure TMainForm.SyncingFoldersButtonClick(Sender: TObject);
+procedure TMainForm.FileOpenButton2Click(Sender: TObject);
 var
   Directory: string;
 begin
   if SelectDirectory('Выберите папку для синхронизации', '', Directory) then
-    SyncingFoldersMemo.Lines.Add(Syncher.AddBackSlash(Directory));
+    FileOpenEdit2.Text := Syncher.AddBackSlash(Directory);
 end;
 
-procedure TMainForm.FileOpenButtonClick(Sender: TObject);
+procedure TMainForm.FileOpenButton1Click(Sender: TObject);
 var
   Directory: string;
 begin
-  if SelectDirectory('Выберите главную папку', '', Directory) then
-    FileOpenEdit.Text := Syncher.AddBackSlash(Directory);
+  if SelectDirectory('Выберите первую папку', '', Directory) then
+    FileOpenEdit1.Text := Syncher.AddBackSlash(Directory);
 end;
 
 procedure TMainForm.TestButtonClick(Sender: TObject);
+var
+  Options: TSynchingOptions;
+  Report: TStringList;
 begin
-  Syncher.SyncFolder(FileOpenEdit.Text, SyncingFoldersMemo.Lines[0], RecycleCheckBox.IsPressed);
+  // set options
+  Options.SynchRelations := TSyncher.TSynchRelations.srMainSecondary;
+  Options.MainItem := 1;
+  Options.ConflictSolving := TSyncher.TConflictSolving.csShowConflict;
+
+  Report := Syncher.AnalyzeCopying(FileOpenEdit1.Text, FileOpenEdit2.Text, Options);
+  TestMemo.Lines.AddStrings(Report);
+  Report.Destroy;
 end;
 
 end.
