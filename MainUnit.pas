@@ -9,7 +9,7 @@ uses
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Edit, FMX.Controls.Presentation, FMX.StdCtrls, FMX.ScrollBox,
   FMX.Memo,
   // Project includings
-  SyncingUnit;
+  SynchingUnit;
 
 type
   TMainForm = class(TForm)
@@ -18,13 +18,17 @@ type
     FileOpenButton1: TButton;
     TestMemo: TMemo;
     FileOpenButton2: TButton;
-    DirectoryLabel1: TLabel;
-    DirectoryLabel2: TLabel;
+    FileOpenLabel1: TLabel;
+    FileOpenLabel2: TLabel;
     RecycleCheckBox: TCheckBox;
     FileOpenEdit2: TEdit;
+    SwapButton: TSpeedButton;
+    MainFolderCheckBox: TCheckBox;
     procedure FileOpenButton1Click(Sender: TObject);
     procedure TestButtonClick(Sender: TObject);
     procedure FileOpenButton2Click(Sender: TObject);
+    procedure FileOpenEdit1Change(Sender: TObject);
+    procedure SwapButtonClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -46,6 +50,20 @@ begin
     FileOpenEdit2.Text := Syncher.AddBackSlash(Directory);
 end;
 
+procedure TMainForm.FileOpenEdit1Change(Sender: TObject);
+begin
+  Syncher.Analyzed := false;
+end;
+
+procedure TMainForm.SwapButtonClick(Sender: TObject);
+var
+  s: string;
+begin
+  s := FileOpenEdit1.Text;
+  FileOpenButton1.Text := FileOpenEdit2.Text;
+  FileOpenEdit2.Text := s;
+end;
+
 procedure TMainForm.FileOpenButton1Click(Sender: TObject);
 var
   Directory: string;
@@ -59,12 +77,9 @@ var
   Options: TSynchingOptions;
   Report: TStringList;
 begin
-  // set options
-  Options.SynchRelations := TSyncher.TSynchRelations.srMainSecondary;
-  Options.MainItem := 1;
-  Options.ConflictSolving := TSyncher.TConflictSolving.csShowConflict;
+  Options := TSynchingOptions.Create(TSynchRelations(MainFolderCheckBox.IsChecked.ToInteger), csShowConflict);
 
-  Report := Syncher.AnalyzeCopying(FileOpenEdit1.Text, FileOpenEdit2.Text, Options);
+  Report := Syncher.AnalyzeSynching(FileOpenEdit1.Text, FileOpenEdit2.Text, Options);
   TestMemo.Lines.AddStrings(Report);
   Report.Destroy;
 end;

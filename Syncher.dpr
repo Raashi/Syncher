@@ -4,8 +4,9 @@ uses
   System.StartUpCopy,
   FMX.Forms,
   MainUnit in 'MainUnit.pas' {MainForm},
-  FileCopierU in 'FileCopierU.pas',
-  SyncingUnit in 'SyncingUnit.pas';
+  SynchingUnit in 'SynchingUnit.pas',
+  CRCHash in 'CRCHash.pas',
+  SyncherItemUnit in 'SyncherItemUnit.pas';
 
 {$R *.res}
 

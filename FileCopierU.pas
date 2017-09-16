@@ -5,7 +5,7 @@ unit FileCopierU;
 interface
 
 uses
-  Windows, Messages, SysUtils, Classes, VCL.Controls, VCL.Stdctrls, strUtils, VCL.ComCtrls, ShellApi, Math;
+  Windows, Messages, SysUtils, Classes, strUtils, ShellApi, Math;
 
 Type
   TFolderOp = (foCopy, foCount, foSize);
