@@ -30,7 +30,6 @@ type
   public
     property Parent: TSyncherItem read FParent;
     property Name: string read FName;
-    property Path: string read FRelativePath;
     property FullPath: string read FFullPath;
     property RelativePath: string read FRelativePath;
     property IsFile: boolean read FIsFile;
@@ -38,6 +37,7 @@ type
     property Bytes: Int64 read FBytes;
     property FilesCount: integer read FFilesCount;
     property FoldersCount: integer read FFoldersCount;
+    property LastModifiedTime: TDateTime read FLastModifiedDate;
 
     function SubTree: TArray<TSyncherItem>;
     property SubTreeCount: integer read GetTreeCount;
@@ -46,6 +46,8 @@ type
     constructor Create(Parent: TSyncherItem; const Name: string; const IsFile: boolean);
     constructor CreateRoot(const Path: string);
     destructor Destroy; override;
+
+    class procedure PutItemInList(SI: TSyncherItem; List: TList<TSyncherItem>);
   end;
 
 implementation
@@ -183,6 +185,17 @@ begin
     result := nil
   else
     result := FSubTree[Index];
+end;
+
+class procedure TSyncherItem.PutItemInList(SI: TSyncherItem; List: TList<TSyncherItem>);
+var
+  item: TSyncherItem;
+begin
+  if SI.IsFile or (SI.FFilesCount = 0) then
+    List.Add(SI)
+  else if SI.FFilesCount > 0 then
+    for item in SI.SubTree do
+      PutItemInList(item, List);
 end;
 
 end.

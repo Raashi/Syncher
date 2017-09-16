@@ -40,7 +40,7 @@ type
       SecondUpdate: TDateTime;
       PreferedVariant: TConflictPreferedVariant;
 
-      constructor Create(FI: TSyncherItem; FU: TDateTime; SI: TSyncherItem; SU: TDateTime);
+      constructor Create(FI, SI: TSyncherItem);
     end;
 
     TAnalyzisResult = class
@@ -70,8 +70,8 @@ type
     function DeleteFile(SI: TSyncherItem; UseRecycleBin: boolean): integer;
     function CopyFile(MI, PSI: TSyncherItem): integer;
 
-    class function Compare(const Item1, Item2: TSyncherItem): boolean;
-    class function CompareData(const Item1, Item2: TSyncherItem): boolean;
+    function Compare(const Item1, Item2: TSyncherItem): boolean;
+    function CompareData(const Item1, Item2: TSyncherItem): boolean;
   public
     property Analyzed: boolean write FAnalyzed;
 
@@ -131,28 +131,20 @@ begin
   FLastAnalyzis := TAnalyzisResult.Create;
   FLastOptions := TSynchingOptions.Create(Options);
 
-  case Options.SynchRelations of
-    srBothMain:
-    begin
-      // TODO: add last-update checking? Maybe in TSyncherItem's constructor? (Check if conflicts solved by user)
-    end;
-    srMainSecondary:
-      AnalyzeMainSecondary(FItem1, FItem2);
-  end;
-
+  AnalyzeMainSecondary(FItem1, FItem2);
+  
   result := FLastAnalyzis.ToText;
 end;
 
 procedure TSyncher.AnalyzeMainSecondary(Main, Secondary: TSyncherItem);
 var
   si1, si2: TSyncherItem;
-  DeleteFilesList, CopyFilesList: TList<TSyncherItem>;
-  si: TObject;
+  List2, List1: TList<TSyncherItem>;
 begin
-  CopyFilesList := TList<TSyncherItem>.Create;
-  CopyFilesList.AddRange(Main.SubTree);
-  DeleteFilesList := TList<TSyncherItem>.Create;
-  DeleteFilesList.AddRange(Secondary.SubTree);
+  List1 := TList<TSyncherItem>.Create;
+  List1.AddRange(Main.SubTree);
+  List2 := TList<TSyncherItem>.Create;
+  List2.AddRange(Secondary.SubTree);
 
   // analyzing
   for si1 in Main.SubTree do
@@ -161,31 +153,56 @@ begin
       begin
         if si1.IsFile then
         begin
-          if not CompareData(si1, si2) then
-          begin  
-            // new to change old file with the new one
-            FLastAnalyzis.FilesToCopyToFolder2.Add(si1);
-            FLastAnalyzis.FilesToDelete.Add(si2);
-          end;
-          // else doing nothing - file is actual or content didn't checked because of huge size
+          if not CompareData(si1, si2) then 
+            case FLastOptions.SynchRelations of
+              srBothMain:
+                FLastAnalyzis.Conflicts.Add(TConflict.Create(si1, si2)); // conflict: equal data
+              srMainSecondary:
+              begin
+                FLastAnalyzis.FilesToCopyToFolder2.Add(si1); // need to renew element
+                FLastAnalyzis.FilesToDelete.Add(si2);
+              end;
+            end;
         end
         else
-          // get information about tree if it's a folder
           AnalyzeMainSecondary(si1, si2);
 
         // remove equal items - information about them was gathered above
-        CopyFilesList.Remove(si1);
-        DeleteFilesList.Remove(si2);
+        List1.Remove(si1);
+        List2.Remove(si2);
+
         break;
       end;
-  // check for new files in Main and files to Delete in Secondary
-  for si1 in CopyFilesList do
-    FLastAnalyzis.FilesToCopyToFolder2.Add(si1);
-  for si2 in DeleteFilesList do
-    FLastAnalyzis.FilesToDelete.Add(si2);
-  
-  CopyFilesList.Destroy;
-  DeleteFilesList.Destroy;
+
+  case FLastOptions.SynchRelations of
+    srBothMain:
+    begin
+      // FilesToDelete must be empty
+      if FLastAnalyzis.FilesToDelete.Count > 0 then
+        raise Exception.Create('FilesToDelete isn''t empty with BothMain copy mode');
+      // new files for 2nd item
+      for si1 in List1 do
+        TSyncherItem.PutItemInList(si1, FLastAnalyzis.FilesToCopyToFolder2);
+      // new files for 1nd item
+      for si2 in List2 do
+        TSyncherItem.PutItemInList(si2, FLastAnalyzis.FilesToCopyToFolder1);
+    end;
+    srMainSecondary:
+    begin
+      // FileToCopyToFolder1 must be empty
+      if FLastAnalyzis.FilesToCopyToFolder1.Count > 0 then
+        raise Exception.Create('FilesToCopyToFolder1 isn''t empty with MainSecondary copy mode');      
+      // new files
+      for si1 in List1 do
+        TSyncherItem.PutItemInList(si1, FLastAnalyzis.FilesToCopyToFolder2);
+      // excess files
+      for si2 in List2 do
+        TSyncherItem.PutItemInList(si2, FLastAnalyzis.FilesToDelete);
+    end;
+  end;
+
+  List1.Destroy;
+  List2.Destroy;
 end;
 
 procedure TSyncher.Synch;
@@ -193,12 +210,12 @@ begin
 
 end;
 
-class function TSyncher.Compare(const Item1, Item2: TSyncherItem): boolean;
+function TSyncher.Compare(const Item1, Item2: TSyncherItem): boolean;
 begin
   result := (Item1.Name = Item2.Name) and (Item1.IsFile = Item2.IsFile);
 end;
 
-class function TSyncher.CompareData(const Item1, Item2: TSyncherItem): boolean;
+function TSyncher.CompareData(const Item1, Item2: TSyncherItem): boolean;
 begin
   result := Item1.Bytes = Item2.Bytes;
   if (Item1.Bytes < HashMaxFileSize) and (Item2.Bytes < HashMaxFileSize) and result then
@@ -325,12 +342,10 @@ end;
 
 { TSyncher.TConflict }
 
-constructor TSyncher.TConflict.Create(FI: TSyncherItem; FU: TDateTime; SI: TSyncherItem; SU: TDateTime);
+constructor TSyncher.TConflict.Create(FI, SI: TSyncherItem);
 begin
   FirstItem := FI;
   SecondItem := SI;
-  FirstUpdate := FU;
-  SecondUpdate := SU;
   PreferedVariant := cpvNotSolved;
 end;
 
@@ -357,22 +372,28 @@ end;
 function TSyncher.TAnalyzisResult.ToText: TStringList;
 var
   si: TSyncherItem;
+  c: TConflict;
 begin
   result := TStringList.Create;
 
-  result.Add('File to Copy To ' + Syncher.FItem2.FullPath + sLineBreak + Separator);
+  result.Add('Files to copy to ' + Syncher.FItem2.FullPath + sLineBreak + Separator);
   for si in FilesToCopyToFolder2 do
-    result.Add(si.FullPath + ' ' + si.Bytes.ToString);
+    result.Add(si.FullPath);
   result.Add(Separator);
 
-  result.Add(sLineBreak + 'File to Copy To ' + Syncher.FItem1.FullPath + sLineBreak + Separator);
+  result.Add(sLineBreak + 'Files to copy to ' + Syncher.FItem1.FullPath + sLineBreak + Separator);
   for si in FilesToCopyToFolder1 do
-    result.Add(si.FullPath + ' ' + si.Bytes.ToString);
+    result.Add(si.FullPath);
   result.Add(Separator);
 
-  result.Add(sLineBreak + 'File to Delete' + sLineBreak + Separator);
+  result.Add(sLineBreak + 'Files to delete' + sLineBreak + Separator);
   for si in FilesToDelete do
     result.Add(si.FullPath);
+  result.Add(Separator);
+
+  result.Add(sLineBreak + 'Conflicts' + sLineBreak + Separator);
+  for c in Conflicts do
+    result.Add(c.FirstItem.RelativePath);
   result.Add(Separator);
 end;
 

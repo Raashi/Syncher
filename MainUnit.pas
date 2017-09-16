@@ -60,7 +60,7 @@ var
   s: string;
 begin
   s := FileOpenEdit1.Text;
-  FileOpenButton1.Text := FileOpenEdit2.Text;
+  FileOpenEdit1.Text := FileOpenEdit2.Text;
   FileOpenEdit2.Text := s;
 end;
 
@@ -80,6 +80,7 @@ begin
   Options := TSynchingOptions.Create(TSynchRelations(MainFolderCheckBox.IsChecked.ToInteger), csShowConflict);
 
   Report := Syncher.AnalyzeSynching(FileOpenEdit1.Text, FileOpenEdit2.Text, Options);
+  TestMemo.Lines.Clear;
   TestMemo.Lines.AddStrings(Report);
   Report.Destroy;
 end;
