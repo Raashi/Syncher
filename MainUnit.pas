@@ -77,7 +77,7 @@ var
   Options: TSynchingOptions;
   Report: TStringList;
 begin
-  Options := TSynchingOptions.Create(TSynchRelations(MainFolderCheckBox.IsChecked.ToInteger), csShowConflict);
+  Options := TSynchingOptions.Create(TSynchRelations(MainFolderCheckBox.IsChecked.ToInteger), csShowConflict, not RecycleCheckBox.IsChecked);
 
   Report := Syncher.AnalyzeSynching(FileOpenEdit1.Text, FileOpenEdit2.Text, Options);
   TestMemo.Lines.Clear;

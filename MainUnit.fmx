@@ -24,7 +24,7 @@ object MainForm: TMainForm
   object FileOpenEdit1: TEdit
     Touch.InteractiveGestures = [LongTap, DoubleTap]
     TabOrder = 2
-    Text = 'D:\Projects\Syncher\Test\Main Folder\'
+    Text = 'E:\Projects\Syncher\Test\Main Folder\'
     Position.X = 32.000000000000000000
     Position.Y = 56.000000000000000000
     Size.Width = 321.000000000000000000
@@ -92,7 +92,7 @@ object MainForm: TMainForm
   object FileOpenEdit2: TEdit
     Touch.InteractiveGestures = [LongTap, DoubleTap]
     TabOrder = 1
-    Text = 'D:\Projects\Syncher\Test\Secondary Folder\'
+    Text = 'E:\Projects\Syncher\Test\Secondary Folder\'
     Position.X = 480.000000000000000000
     Position.Y = 56.000000000000000000
     Size.Width = 321.000000000000000000

@@ -47,10 +47,34 @@ type
     constructor CreateRoot(const Path: string);
     destructor Destroy; override;
 
+    class function RefreshAndGet(Root: TSyncherItem; RelativePath: string): TSyncherItem;
     class procedure PutItemInList(SI: TSyncherItem; List: TList<TSyncherItem>);
   end;
 
+function AddBackSlash(const S: String): string;
+function RemoveBackSlash(const S: string): string;
+
 implementation
+
+function AddBackSlash(const S: String): string;
+begin
+  Result := S;
+  if S <> '' then
+  begin
+    if S[length(S)] <> '\' then
+      Result := S + '\';
+  end
+  else
+    Result := '\';
+end;
+
+function RemoveBackSlash(const S: string): string;
+begin
+  if S[S.Length] <> '\' then
+    result := S
+  else
+    result := S.Substring(0, S.Length - 1);
+end;
 
 { TSyncherItem }
 
@@ -63,6 +87,9 @@ begin
   FFullPath := Parent.FFullPath + FName;
   FRelativePath := Parent.FRelativePath + FName;
   FIsFile := IsFile;
+
+  if integer(GetFileAttributes(PChar(FFullPath))) = -1 then
+    raise Exception.Create('File: "' + FFullPath + '" doesn''t exit!');
 
   if FIsFile then
   begin
@@ -196,6 +223,42 @@ begin
   else if SI.FFilesCount > 0 then
     for item in SI.SubTree do
       PutItemInList(item, List);
+end;
+
+class function TSyncherItem.RefreshAndGet(Root: TSyncherItem; RelativePath: string): TSyncherItem;
+var
+  arr: TArray<string>;
+  i: integer;
+  si, s_si: TSyncherItem;
+  FolderNotFound: boolean;
+begin
+  if Root.Parent <> nil then
+    raise Exception.Create('Item isn''t root!');
+
+  arr := RelativePath.Split(['\']);
+  s_si := Root;
+  si := nil;
+  for i := 0 to Length(arr) - 1 do
+  begin
+    FolderNotFound := true;
+
+    for si in s_si.FSubTree do
+      if si.FName = arr[i] then
+      begin
+        FolderNotFound := false;
+        break;
+      end;
+
+    if FolderNotFound then
+      s_si := si
+    else
+    begin
+      si := TSyncherItem.Create(s_si, arr[i], i = Length(arr) - 1);
+      s_si := si;
+    end;
+  end;
+
+  result := s_si;
 end;
 
 end.

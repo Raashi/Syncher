@@ -28,8 +28,9 @@ type
     TSynchingOptions = record
       SynchRelations: TSynchRelations;
       ConflictSolving: TConflictSolving;
+      UseRecycleBin: boolean;
 
-      constructor Create(SynchRelations: TSynchRelations; ConflictSolving: TConflictSolving); overload;
+      constructor Create(SynchRelations: TSynchRelations; ConflictSolving: TConflictSolving; UseRecycleBin: boolean); overload;
       constructor Create(Options: TSynchingOptions); overload;
     end;
 
@@ -65,18 +66,13 @@ type
   
     procedure AnalyzeMainSecondary(Main, Secondary: TSyncherItem);
 
-    procedure DeleteExtras(MainItem, SyncItem: TSyncherItem; UseRecycleBin: boolean);
-    procedure CopyNew(MainItem, SyncItem: TSyncherItem);
-    function DeleteFile(SI: TSyncherItem; UseRecycleBin: boolean): integer;
-    function CopyFile(MI, PSI: TSyncherItem): integer;
+    function DeleteFile(SI: TSyncherItem): integer;
+    function CopyFile(SI_1, SI_2_Root: TSyncherItem): integer;
 
     function Compare(const Item1, Item2: TSyncherItem): boolean;
     function CompareData(const Item1, Item2: TSyncherItem): boolean;
   public
     property Analyzed: boolean write FAnalyzed;
-
-    function AddBackSlash(const S: String): string;
-    function RemoveBackSlash(const S: string): string;
 
     function AnalyzeSynching(FirstPath, SecondPath: string; Options: TSynchingOptions): TAnalyzisReport;
     procedure Synch;
@@ -206,8 +202,15 @@ begin
 end;
 
 procedure TSyncher.Synch;
+var
+  si: TSyncherItem;
 begin
-
+  for si in FLastAnalyzis.FilesToCopyToFolder1 do
+    CopyFile(si, FItem1);
+  for si in FLastAnalyzis.FilesToCopyToFolder2 do
+    CopyFile(si, FItem2);
+  for si in FLastAnalyzis.FilesToDelete do
+    DeleteFile(si);
 end;
 
 function TSyncher.Compare(const Item1, Item2: TSyncherItem): boolean;
@@ -222,27 +225,7 @@ begin
     result := GetFileCRC(Item1.FullPath) = GetFileCRC(Item2.FullPath);
 end;
 
-function TSyncher.AddBackSlash(const S: String): string;
-begin
-  Result := S;
-  if S <> '' then
-  begin
-    if S[length(S)] <> '\' then
-      Result := S + '\';
-  end
-  else
-    Result := '\';
-end;
-
-function TSyncher.RemoveBackSlash(const S: string): string;
-begin
-  if S[S.Length] <> '\' then
-    result := S
-  else
-    result := S.Substring(0, S.Length - 1);
-end;
-
-function TSyncher.DeleteFile(SI: TSyncherItem; UseRecycleBin: boolean): integer;
+function TSyncher.DeleteFile(SI: TSyncherItem): integer;
 var
   FileOp: TSHFileOpStruct;
 begin
@@ -257,7 +240,7 @@ begin
   FileOp.pFrom := PChar(SI.FullPath + #0);
   FileOP.fAnyOperationsAborted := false;
 
-  if UseRecycleBin then
+  if FLastOptions.UseRecycleBin then
     FileOp.fFlags := FOF_NO_UI
   else
     FileOp.fFlags := FOF_ALLOWUNDO or FOF_NO_UI;
@@ -265,79 +248,21 @@ begin
   Result := SHFileOperation(FileOp);
 end;
 
-function TSyncher.CopyFile(MI, PSI: TSyncherItem): integer;
+function TSyncher.CopyFile(SI_1, SI_2_Root: TSyncherItem): integer;
 var
   FileOp: TSHFileOpStruct;
 begin
-  if integer(GetFileAttributes(PChar(MI.FullPath))) = -1 then
-  begin
-    result := 0;
-    exit;
-  end;
+  if integer(GetFileAttributes(PChar(SI_1.FullPath))) = -1 then
+    raise Exception.Create('File "' + SI_1.FullPath + '" doesn''t exist!');
 
   ZeroMemory(@FileOp, SizeOf(FileOp));
   FileOp.wFunc := FO_COPY;
-  FileOp.pFrom := PChar(MI.FullPath + #0);
-  FileOP.pTo := PChar(PSI.FullPath + #0);
+  FileOp.pFrom := PChar(SI_1.FullPath + #0);
+  FileOP.pTo := PChar(SI_2_Root.FullPath + SI_1.Parent.Name + #0);
   FileOP.fAnyOperationsAborted := false;
   FileOp.fFlags := FOF_NO_UI;
 
   Result := SHFileOperation(FileOp);
-
-  TSyncherItem.Create(PSI, MI.Name, MI.IsFile);
-end;
-
-procedure TSyncher.DeleteExtras(MainItem, SyncItem: TSyncherItem; UseRecycleBin: boolean);
-var
-  i, j: integer;
-  NeedDelete: boolean;
-  SI: TSyncherItem;
-begin
-  for i := SyncItem.SubTreeCount - 1 downto 0 do
-  begin
-    SI := SyncItem[i];
-    NeedDelete := true;
-
-    for j := 0 to MainItem.SubTreeCount - 1 do
-      if Compare(SI, MainItem[j]) then
-      begin
-        if not SI.IsFile then
-          DeleteExtras(MainItem[j], SI, UseRecycleBin);
-        NeedDelete := false;
-        break;
-      end;
-
-    if NeedDelete then
-    begin
-      DeleteFile(SI, UseRecycleBin);
-      SI.Destroy;
-    end;
-  end;
-end;
-
-procedure TSyncher.CopyNew(MainItem, SyncItem: TSyncherItem);
-var
-  i, j: Integer;
-  MI: TSyncherItem;
-  NeedCopy: boolean;
-begin
-  for i := 0 to MainItem.SubTreeCount - 1 do
-  begin
-    MI := MainItem[i];
-    NeedCopy := true;
-
-    for j := 0 to SyncItem.SubTreeCount - 1 do
-      if Compare(SyncItem[j], MI) then
-      begin
-        if not MI.IsFile then
-          CopyNew(MI, SyncItem[j]);
-        NeedCopy := false;
-        break;
-      end;
-
-    if NeedCopy then
-      CopyFile(MI, SyncItem);
-  end;
 end;
 
 { TSyncher.TConflict }
@@ -399,10 +324,11 @@ end;
 
 { TSyncher.TSynchingOptions }
 
-constructor TSyncher.TSynchingOptions.Create(SynchRelations: TSynchRelations; ConflictSolving: TConflictSolving);
+constructor TSyncher.TSynchingOptions.Create(SynchRelations: TSynchRelations; ConflictSolving: TConflictSolving; UseRecycleBin: boolean);
 begin
   Self.SynchRelations := SynchRelations;
   Self.ConflictSolving := ConflictSolving;
+  Self.UseRecycleBin := UseRecycleBin;
 end;
 
 constructor TSyncher.TSynchingOptions.Create(Options: TSynchingOptions);
